@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>有給休暇 基準日計算ツール</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { margin: 4px; padding: 6px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h1>有給休暇 基準日計算ツール</h1>
+  <label>スタッフ名：<input type="text" id="staffName"></label>
+  <label>勤務開始日：<input type="date" id="startDate"></label>
+  <label>申請日：<input type="date" id="requestDate"></label>
+  <button onclick="generatePeriods()">基準日を生成</button>
+
+  <div id="output"></div>
+  <h3 id="totalLeave"></h3>
+
+  <script>
+    function generatePeriods() {
+      const name = document.getElementById("staffName").value;
+      const start = new Date(document.getElementById("startDate").value);
+      const request = new Date(document.getElementById("requestDate").value);
+      const output = document.getElementById("output");
+      document.getElementById("totalLeave").innerText = "";
+
+      if (!start || !request || isNaN(start) || isNaN(request)) {
+        output.innerHTML = '<p style="color:red">勤務開始日と申請日を入力してください。</p>';
+        return;
+      }
+
+      const baseDates = [];
+      const initial = new Date(start);
+      initial.setMonth(initial.getMonth() + 6);
+      while (initial <= request) {
+        baseDates.push(new Date(initial));
+        initial.setFullYear(initial.getFullYear() + 1);
+      }
+
+      let html = `<h2>${name} の基準日一覧</h2>`;
+      html += `<table id="resultTable"><tr><th>基準日</th><th>年間労働日数</th><th>月平均</th><th>週所定労働日数</th><th>有給付与日数</th><th>ステータス</th></tr>`;
+
+      const today = new Date();
+      baseDates.forEach(base => {
+        const baseStr = base.toISOString().split('T')[0];
+        const expire = new Date(base);
+        expire.setFullYear(expire.getFullYear() + 2);
+
+        const status = today > expire ? "時効" : today < base ? "未付与" : "有効";
+
+        html += `<tr>
+          <td>${baseStr}</td>
+          <td><input type='number' class='workdays' oninput='autoCalc(this)' /></td>
+          <td class='monthly'></td>
+          <td class='weekly'></td>
+          <td class='entitled'></td>
+          <td class='status'>${status}</td>
+        </tr>`;
+      });
+      html += '</table>';
+      output.innerHTML = html;
+    }
+
+    function autoCalc(input) {
+      const row = input.closest('tr');
+      const workdays = parseFloat(input.value);
+      if (!workdays || workdays <= 0) return;
+
+      const monthly = (workdays / 12).toFixed(2);
+      const weekly = (workdays / 52).toFixed(2);
+
+      row.querySelector('.monthly').innerText = monthly;
+      row.querySelector('.weekly').innerText = weekly;
+
+      let entitled = 0;
+      if (weekly >= 4) entitled = 7;
+      else if (weekly >= 3) entitled = 5;
+      else if (weekly >= 2) entitled = 3;
+      else if (weekly >= 1) entitled = 1;
+
+      row.querySelector('.entitled').innerText = entitled;
+
+      calculateTotal();
+    }
+
+    function calculateTotal() {
+      const rows = document.querySelectorAll('#resultTable tr');
+      let total = 0;
+      rows.forEach((row, index) => {
+        if (index === 0) return; // skip header
+        const status = row.querySelector('.status')?.innerText;
+        const entitled = parseFloat(row.querySelector('.entitled')?.innerText || 0);
+        if (status === "有効") total += entitled;
+      });
+      document.getElementById("totalLeave").innerText = `現在有効な有給休暇日数の合計：${total}日`;
+    }
+  </script>
+</body>
+</html>
